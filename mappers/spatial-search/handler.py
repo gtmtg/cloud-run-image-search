@@ -72,6 +72,4 @@ class SpatialSearchMapper(ResNetBackboneMapper):
             await self.storage_client.upload(bucket, path, image_buffer)
 
 
-mapper = SpatialSearchMapper(
-    config.RESNET_CONFIG, config.WEIGHTS_CLOUD_PATH, config.WEIGHTS_LOCAL_PATH,
-)
+mapper = SpatialSearchMapper(config.RESNET_CONFIG, config.WEIGHTS_PATH)

@@ -13,6 +13,13 @@ RUN apt-get update \
     && grep -F -x -v -f requirements.txt requirements-build.txt | pip uninstall -y -r /dev/stdin \
     && apt-get purge -y --auto-remove gcc python3.7-dev
 
+# Download external resources.
+COPY resources.txt ./
+RUN apt-get install wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && wget -i resources.txt \
+    && apt-get purge -y --auto-remove wget
+
 # Run the web service on container startup.
 COPY . ./
 ENV LRU_CACHE_CAPACITY=1

@@ -1,9 +1,7 @@
 import io
-import pathlib
 import os
 
 import aiohttp
-from google.cloud.storage import Client as SyncStorage
 from gcloud.aio.storage import Storage
 import numpy as np
 from PIL import Image
@@ -17,21 +15,14 @@ from knn.mappers import Mapper
 
 
 class ResNetBackboneMapper(Mapper):
-    def initialize_container(self, cfg, weights_cloud_path, weights_local_path):
-        # Load model weights
-        weights_local_path = pathlib.Path(weights_local_path)
-        weights_local_path.parent.mkdir(parents=True, exist_ok=True)
-        with weights_local_path.open("wb") as weights_file:
-            SyncStorage().download_blob_to_file(weights_cloud_path, weights_file)
-
+    def initialize_container(self, cfg, weights_path):
         # Create model
         shape = ShapeSpec(channels=3)
         self.model = torch.nn.Sequential(build_resnet_backbone(cfg, shape))
 
         # Load model weights
         checkpointer = DetectionCheckpointer(self.model, save_to_disk=False)
-        checkpointer.load(weights_local_path.as_posix())
-        weights_local_path.unlink()
+        checkpointer.load(weights_path)
         self.model.eval()
         torch.set_grad_enabled(False)
 

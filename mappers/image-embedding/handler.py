@@ -32,6 +32,4 @@ class ImageEmbeddingMapper(ResNetBackboneMapper):
         return utils.numpy_to_base64(embedding.numpy())
 
 
-mapper = ImageEmbeddingMapper(
-    config.RESNET_CONFIG, config.WEIGHTS_CLOUD_PATH, config.WEIGHTS_LOCAL_PATH,
-)
+mapper = ImageEmbeddingMapper(config.RESNET_CONFIG, config.WEIGHTS_PATH)
