@@ -7,10 +7,11 @@ branch=`git rev-parse --abbrev-ref HEAD`
 project=`gcloud config get-value project 2> /dev/null`
 folder=`echo $1 | sed 's:/*$::'`
 name=mihir-$folder-$branch
+root_path=..
 
 # Copy shared resources in
 cp common/* $folder
-cp -r ../src/knn $folder
+cp -r $root_path/src/knn $folder
 
 # Submit build from within subdirectory
 gcloud config set builds/use_kaniko True

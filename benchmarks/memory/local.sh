@@ -1,6 +1,4 @@
-name=mihir-benchmark-`basename ~+`
 folder=mapper
-region=us-central1
 root_path=../..
 port=${1:-1234}
 
