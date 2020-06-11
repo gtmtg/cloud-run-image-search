@@ -9,7 +9,7 @@ folder=`echo $1 | sed 's:/*$::'`
 name=mihir-$folder-$branch
 root_path=..
 
-if [[ $project -ne kayvonf-cloud-run-experiments ]]; then
+if [[ "$project" != "kayvonf-cloud-run-experiments" ]]; then
     echo "Must be deployed on whitelisted project kayvonf-cloud-run-experiments"
     exit 2
 fi
