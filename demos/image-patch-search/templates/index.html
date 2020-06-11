@@ -1,0 +1,324 @@
+<!doctype html>
+
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>knn</title>
+        <link rel="stylesheet" href="static/main.css"></script>
+
+    </head>
+
+    <body>
+        <div class="container">
+            <div class="row">
+                <div class="col-9">
+                    <canvas id="main_canvas" width="640" height="480"></canvas>
+                    <br>
+                    <button id="toggle">Start</button>
+                    <button id="clear" onclick="handle_clear_boxes()">Clear Boxes</button>
+                    <span style="float: right;">Concurrent workers: <input id="n_concurrent_workers" type="number" value="{{ n_concurrent_workers }}" min="1" max="1000"/></span>
+                    <br>
+                    <div id="results"></div>
+                </div>
+                <div class="col-3">
+                    <div id="stats" style="display: none;">
+                        <b>Throughput:</b>
+                        <hr size="1" />
+
+                        <section id="elapsed_time">
+                            <div id="text"></div>
+                        </section>
+
+                        <section id="progress">
+                            <div id="text"></div>
+                            <progress id="bar"/>
+                        </section>
+
+                        <section id="images_per_second_avg">
+                            <div id="text"></div>
+                            <progress id="bar"/>
+                        </section>
+
+                        <section id="images_per_second">
+                            <div id="text"></div>
+                            <progress id="bar"/>
+                        </section>
+
+                        <b>Cost:</b>
+                        <hr size="1" />
+
+                        <section id="total_cost">
+                            <div id="text"></div>
+                        </section>
+
+                        <section id="cost_per_image">
+                            <div id="text"></div>
+                        </section>
+
+                        <b>Perf Analysis:</b>
+                        <hr size="1" />
+
+                        <section id="time_breakdown"></section>
+
+                        <b>Workers:</b>
+                        <hr size="1" />
+
+                        <section id="worker_distribution"></section>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript" src="static/kmath.js"></script>
+    <script type="text/javascript" src="static/klabel.js"></script>
+    <script type="text/javascript">
+    // Labeler
+    const image_url_prefix = `https://storage.googleapis.com/{{ image_bucket }}/`;
+    const images = {{ demo_images|tojson }};
+
+    var labeler = new ImageLabeler;
+
+    var main_canvas = document.getElementById("main_canvas");
+    labeler.init(main_canvas);
+
+    var image_data = [];
+
+    for (const image of images) {
+        var data = new ImageData;
+        data.source_url = image_url_prefix + image;
+        image_data.push(data);
+    }
+
+    labeler.load_image_stack(image_data);
+
+    labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
+
+    function handle_clear_boxes() {
+        labeler.clear_boxes();
+    }
+
+    window.addEventListener("keydown", function(e) {
+        if (e.target.tagName.toLowerCase() == "input") return;
+        e.preventDefault();
+        labeler.handle_keydown(e);
+    });
+
+    window.addEventListener("keyup", function(e) {
+        if (e.target.tagName.toLowerCase() == "input") return;
+        e.preventDefault();
+        labeler.handle_keyup(e);
+    });
+
+    // Running state
+
+    const poll_interval = 1000;  // ms
+    let poll;
+
+    let query_id = null;
+    let prev_progress = {};
+
+    const start_query = (new_query_id) => {
+        query_id = new_query_id;
+        $("#toggle").html("Stop");
+        $("#results").empty();
+        $("#stats").show();
+
+        // Repeatedly poll for updated results from server
+        poll = setInterval(
+            () => $.getJSON("/results", { query_id }, handle_results),
+            poll_interval
+        );
+    }
+
+    const end_query = () => {
+        query_id = null;
+        $("#toggle").html("Start");
+        prev_progress = {};
+        clearInterval(poll);
+    }
+
+    $("#toggle").click(() => {
+        if (query_id) {  // Should end query
+            let payload = { query_id };
+            $("#toggle").html("...");
+            $.ajax({
+                url: "/stop",
+                type: "PUT",
+                data: JSON.stringify(payload),
+                contentType: "application/json",
+                success: end_query,
+                error: () => $("#toggle").html("Stop"),
+            });
+        } else {  // Should start query
+            let annotations = labeler.get_annotations()[labeler.get_current_frame_num()].annotations;
+            if (annotations.length !== 1) {
+                alert('Please draw exactly one box to define a query patch.');
+                return;
+            }
+
+            let bbox = annotations[0].bbox;
+            let source_image = labeler.get_current_frame().source_image;
+            let patch = [
+                // coordinates in normalized [0,1]^2 space,
+                bbox.bmin.x, // x1
+                bbox.bmin.y, // y1
+                bbox.bmax.x, // x2
+                bbox.bmax.y, // y2
+            ];
+            let payload = {
+                n_concurrent_workers: parseInt($("#n_concurrent_workers").val()),
+                template: {
+                    image: images[labeler.get_current_frame_num()],
+                    patch,
+                }
+            };
+
+            $("#toggle").html("...");
+            $.ajax({
+                url: "/start",
+                type: "POST",
+                data: JSON.stringify(payload),
+                contentType: "application/json",
+                success: (data) => start_query(data.query_id),
+                error: () => $("#toggle").html("Start"),
+            });
+        }
+    });
+
+    // Results
+
+    google.charts.load("current", {"packages":["corechart"]});
+
+    const handle_results = (data) => {
+        if (!query_id) return;
+
+        update_results(data.result);
+        update_progress(data.progress);
+        update_profiling(data.performance.profiling);
+        update_workers(data.performance.mapper_utilization);
+
+        if (data.progress.finished) end_query();  // stop when query is complete
+    };
+
+    const update_results = (results) => {
+        let result_html = "";
+
+        if (results.length > 0) {
+            let rank = 1;
+            for (const result of results) {
+                result_html += '<div>';
+                result_html += '<div>'
+                result_html += `(${rank}) ${result["input"]}, score=${Number.parseFloat(result["score"]).toFixed(6)}`;
+                result_html += '<div>';
+                result_html += `<img src="${image_url_prefix}${result["input"]}" width="250" />`;
+                result_html += `<img src="${image_url_prefix}${result["output"]["score_map_path"]}" width="250" />`;
+                result_html += `</div>`;
+                result_html += `</div>`;
+                result_html += `</div>`;
+                rank++;
+            }
+        } else {
+            result_html += '<div>No results have come back yet.</div>';
+        }
+
+        $("#results").html(result_html);
+    };
+
+    const update_progress = (progress) => {
+        progress.ts = (new Date()).getTime();
+
+        update_stat_no_bar("elapsed_time", `Elapsed time: ${Math.round(progress.elapsed_time)} sec`);
+
+        update_stat("progress",
+            `Processed ${progress.n_processed + progress.n_skipped} of ${progress.n_total} <br /> (skipped ${progress.n_skipped})`,
+            progress.n_processed + progress.n_skipped,
+            progress.n_total);
+
+        let images_per_second_avg = progress.n_processed / progress.elapsed_time;
+        update_stat("images_per_second_avg",
+                    `${images_per_second_avg.toFixed(1)} img/sec (overall)`,
+                    images_per_second_avg,
+                    100);
+
+        let images_per_second = make_derivative(progress, prev_progress, "images_per_second", (s) => s.n_processed);
+        update_stat("images_per_second",
+                    `${images_per_second.toFixed(1)} img/sec (recent)`,
+                    images_per_second,
+                    100);
+
+        update_stat_no_bar("total_cost", `Overall cost: $${progress.cost.toFixed(2)}`);
+
+        let cost_per_1k_images = progress.n_processed === 0 ? 0 : (1000 * progress.cost / progress.n_processed);
+        update_stat_no_bar("cost_per_image", `Cost per 1K images: $${cost_per_1k_images.toFixed(4)}`);
+
+        prev_progress = progress;
+    };
+
+    const update_profiling = (profiling) => {
+        let data = google.visualization.arrayToDataTable([
+            ["", ""],
+            ["Cloud Run Overhead (s)", profiling.total_time - profiling.billed_time],
+            ["Model Loading (s)",      profiling.billed_time - profiling.request_time],
+            ["Non-Pipelined I/O (s)",  profiling.request_time - profiling.compute_time],
+            ["Compute (s)",            profiling.compute_time],
+        ]);
+        let options = {
+          title: "Average Request Breakdown",
+          legend: "none"
+        };
+        let chart = new google.visualization.PieChart(document.getElementById("time_breakdown"));
+        chart.draw(data, options);
+    };
+
+    const update_workers = (workers) => {
+        if (!workers) return;
+
+        // # of chunks per worker histogram
+        let data_array = [[""]];
+        for (const n_chunks of Object.values(workers)) {
+            data_array.push([n_chunks]);
+        }
+        let data = google.visualization.arrayToDataTable(data_array);
+        let options = {
+          title: "Chunks Per Worker",
+          legend: "none",
+          histogram: { hideBucketItems: true, },
+        };
+        let chart = new google.visualization.Histogram(document.getElementById("worker_distribution"));
+        chart.draw(data, options);
+    };
+
+    // Helper functions
+
+    const make_derivative = (cur, prev, key, fn) => {
+        if (!$.isEmptyObject(prev)) {
+            // Take derivative
+            cur[key] = (fn(cur) - fn(prev)) *        /* difference */
+                       (1000 / (cur.ts - prev.ts));  /* 1 / dt (in seconds) */
+
+            // Smooth with exponential moving average
+            if (key in prev) {
+                cur[key] = (prev[key] + cur[key]) / 2;
+            }
+
+            return cur[key];
+        } else {
+            return 0;
+        }
+    };
+
+    const update_stat = (name, text, value, max) => {
+        $(`#stats #${name} #text`).html(text);
+        $(`#stats #${name} #bar`).attr({value, max});
+    };
+
+    const update_stat_no_bar = (name, text) => {
+        $(`#stats #${name} #text`).html(text);
+    };
+
+    </script>
+
+</html>

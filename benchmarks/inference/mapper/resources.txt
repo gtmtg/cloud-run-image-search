@@ -1,0 +1,2 @@
+https://dl.fbaipublicfiles.com/detectron2/ImageNetPretrained/MSRA/R-50.pkl
+https://storage.googleapis.com/mihir-fast-queries/images/lvis/test2017/000000003581.jpg
