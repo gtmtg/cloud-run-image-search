@@ -8,7 +8,6 @@ COPY requirements-build.txt ./
 COPY requirements.txt ./
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc python3.7-dev wget \
-    && rm -rf /var/lib/apt/lists/* \
     && pip install -r requirements-build.txt \
     && pip install -r requirements.txt \
     && grep -F -x -v -f requirements.txt requirements-build.txt | pip uninstall -y -r /dev/stdin \
