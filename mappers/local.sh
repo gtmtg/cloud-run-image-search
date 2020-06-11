@@ -1,13 +1,21 @@
+if [[ $# -ne 1 && $# -ne 2 ]]; then
+    echo "Usage: ./local.sh [subdir] [port (optional, default 1234)]"
+    exit 1
+fi
+
+folder=`echo $1 | sed 's:/*$::'`
+port=${2:-1234}
+
 # Copy shared resources in
-cp common/* $1
-cp -r ../src/knn $1
+cp common/* $folder
+cp -r ../src/knn $folder
 
 # Run server from within subdirectory
-(cd $1; LRU_CACHE_CAPACITY=1 uvicorn --host "0.0.0.0" --port $2 --workers 1 handler:mapper)
+(cd $folder; LRU_CACHE_CAPACITY=1 uvicorn --host "0.0.0.0" --port $port --workers 1 handler:mapper)
 
 # Remove shared resources
 for file in $(ls common/)
 do
-   rm $1/"$file"
+   rm $folder/"$file"
 done
-rm -rf $1/knn
+rm -rf $folder/knn
