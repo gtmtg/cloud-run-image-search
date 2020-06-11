@@ -73,3 +73,7 @@ class SpatialSearchMapper(ResNetBackboneMapper):
 
 
 mapper = SpatialSearchMapper(config.RESNET_CONFIG, config.WEIGHTS_PATH)
+# Note: listen() should happen here; uvicorn command in Dockerfile will import
+# this module, create mapper (which calls the __init__() function of the base
+# class Mapper which in turn calls initialize_container() in
+# ResNetBackboneMapper), and then start listening on socket.

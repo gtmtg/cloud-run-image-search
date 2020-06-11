@@ -8,6 +8,11 @@ project=`gcloud config get-value project 2> /dev/null`
 folder=`echo $1 | sed 's:/*$::'`
 name=mihir-$folder-$branch
 
+if [[ $project -ne kayvonf-cloud-run-experiments ]]; then
+    echo "Must be deployed on whitelisted project kayvonf-cloud-run-experiments"
+    exit 2
+fi
+
 # Copy shared resources in
 cp common/* $folder
 cp -r ../src/knn $folder

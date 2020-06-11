@@ -9,5 +9,10 @@ folder=`echo $1 | sed 's:/*$::'`
 name=mihir-$folder-$branch
 region=us-central1
 
+if [[ $project -ne kayvonf-cloud-run-experiments ]]; then
+    echo "Must be deployed on whitelisted project kayvonf-cloud-run-experiments"
+    exit 2
+fi
+
 # Deploy Cloud Run handler
 gcloud run deploy $name --image gcr.io/$project/$name --platform managed --concurrency 1 --cpu 1 --max-instances 1000 --memory 2Gi --timeout 900 --region $region --allow-unauthenticated
