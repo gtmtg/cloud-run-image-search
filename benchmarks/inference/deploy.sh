@@ -1,6 +1,6 @@
 project=`gcloud config get-value project 2> /dev/null`
-name=benchmark-inference
 folder=mapper
+name=mihir-benchmark-${PWD##*/}
 region=us-central1
 root_path=../..
 

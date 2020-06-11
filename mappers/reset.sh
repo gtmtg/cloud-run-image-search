@@ -1,5 +1,5 @@
 if [[ $# -ne 1 ]]; then
-    echo "Usage: ./deploy.sh [subdir]"
+    echo "Usage: ./reset.sh [subdir]"
     exit 1
 fi
 
