@@ -26,6 +26,7 @@ def main(input, breakdown, throughput, workers):
         print(times["request_time"] - times["compute_time"])  # I/O
         print(times["compute_time"])  # Compute
     elif throughput:
+        print(0.0)
         prev_progress = {}
         for result in results:
             progress = result["progress"]
