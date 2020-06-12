@@ -67,12 +67,19 @@ def unasync(f):
     return wrapper
 
 
-def chunk(iterable, chunk_size):
-    it = iter(iterable)
+def chunk(it, chunk_size, until=None):
+    n = 0
     while True:
-        chunk = tuple(itertools.islice(it, chunk_size))
+        this_chunk_size = chunk_size
+        if until:
+            if n >= until:
+                break
+            this_chunk_size = min(this_chunk_size, until - n)
+
+        chunk = list(itertools.islice(it, this_chunk_size))
         if not chunk:
             break
+        n += len(chunk)
         yield chunk
 
 
