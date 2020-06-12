@@ -25,9 +25,10 @@ class EmptyReducer(Reducer):
 @click.option("-m", "--mapper", default=config.QUERY_ENDPOINT)
 @click.option("-w", "--workers", default=1000)
 @click.option("-i", "--interval", default=5)
+@click.option("-c", "--chunk_size", default=3)
 @click.argument("output", type=click.File("w"))
 @unasync
-async def main(mapper, workers, interval, output):
+async def main(mapper, workers, interval, chunk_size, output):
     query_job = MapReduceJob(
         mapper,
         EmptyReducer(),
@@ -39,6 +40,7 @@ async def main(mapper, workers, interval, output):
             "template": TEMPLATE,
         },
         n_mappers=workers,
+        chunk_size=chunk_size,
         n_retries=1,
     )
 
