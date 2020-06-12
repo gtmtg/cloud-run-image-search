@@ -95,7 +95,7 @@ class MapReduceJob:
 
         iterable = iter(iterable)
 
-        if self.chunk_size in (1, 3, 5, 7, 9):
+        if self.chunk_size in (1, 3, 5, 7, 9, 11, 13):
             chunked = utils.chunk(iterable, self.chunk_size)
         elif self.chunk_size == 15:
             chunked = itertools.chain(
