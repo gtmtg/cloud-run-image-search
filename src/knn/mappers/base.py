@@ -3,13 +3,13 @@ import asyncio
 import collections
 from dataclasses import dataclass
 import functools
+import json
 import time
 import uuid
 
-from typing import List, Dict, Any, DefaultDict
+from typing import Dict, Any, DefaultDict
 
-from sanic import Sanic
-from sanic.response import json
+import sanic
 
 from knn.utils import JSONType
 
@@ -38,16 +38,6 @@ class Mapper(abc.ABC):
 
     async def initialize_job(self, job_args: JSONType) -> Any:
         return job_args
-
-    async def process_chunk(
-        self, chunk: List[JSONType], job_id: str, job_args: Any, request_id: str
-    ) -> List[JSONType]:
-        return await asyncio.gather(
-            *[
-                self.process_element(input, job_id, job_args, request_id, i)
-                for i, input in enumerate(chunk)
-            ]
-        )
 
     @abc.abstractmethod
     async def process_element(
@@ -103,7 +93,7 @@ class Mapper(abc.ABC):
         self.initialize_container(*args, **kwargs)
 
         if start_server:
-            self._server = Sanic(self.worker_id)
+            self._server = sanic.Sanic(self.worker_id)
             self._server.add_route(self._handle_request, "/", methods=["POST"])
             self._server.add_route(self._sleep, "/sleep", methods=["POST"])
         else:
@@ -116,34 +106,47 @@ class Mapper(abc.ABC):
         if self._server is not None:
             return await self._server(*args, **kwargs)
 
-    async def _handle_request(self, request):
-        init_time = self._init_time
-        if self._init_time:
-            self._init_time = 0.0
-            self._boot_time = time.time() - self._init_start_time
+    async def _process_element_enumerated(
+        self,
+        input: JSONType,
+        job_id: str,
+        job_args: Any,
+        request_id: str,
+        element_index: int,
+    ):
+        return (
+            element_index,
+            await self.process_element(
+                input, job_id, job_args, request_id, element_index
+            ),
+        )
 
+    async def _handle_request(self, request):
         request_id = str(uuid.uuid4())
-        with self.profiler(request_id, "boot_time", additional=self._boot_time):
-            pass
-        with self.profiler(request_id, "billed_time", additional=init_time):
-            with self.profiler(request_id, "request_time"):
-                job_id = request.json["job_id"]
-                job_args = self._args_by_job.setdefault(
-                    job_id, await self.initialize_job(request.json["job_args"])
-                )  # memoized
-                outputs = await self.process_chunk(
-                    request.json["inputs"], job_id, job_args, request_id
+        job_id = request.json["job_id"]
+        job_args = self._args_by_job.setdefault(
+            job_id, await self.initialize_job(request.json["job_args"])
+        )  # memoized
+
+        async def process_chunk_streaming(response):
+            for coro in asyncio.as_completed(
+                [
+                    self._process_element_enumerated(
+                        input, job_id, job_args, request_id, i
+                    )
+                    for i, input in enumerate(request.json["inputs"])
+                ]
+            ):
+                i, output = await coro
+                await response.write(
+                    json.dumps(
+                        {"worker_id": self.worker_id, "index": i, "output": output}
+                    )
                 )
 
-        return json(
-            {
-                "worker_id": self.worker_id,
-                "profiling": self._profiling_results_by_request.pop(request_id),
-                "outputs": outputs,
-            }
-        )
+        return sanic.response.stream(process_chunk_streaming)
 
     async def _sleep(self, request):
         delay = float(request.json["delay"])
         await asyncio.sleep(delay)
-        return json(request.json)
+        return sanic.response.json(request.json)
