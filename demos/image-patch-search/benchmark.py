@@ -1,6 +1,7 @@
 import asyncio
 import click
 import json
+import time
 
 from knn.jobs import MapReduceJob
 from knn.reducers import Reducer
@@ -26,9 +27,10 @@ class EmptyReducer(Reducer):
 @click.option("-w", "--workers", default=1000)
 @click.option("-i", "--interval", default=5)
 @click.option("-c", "--chunk_size", default=135)  # 1 -> 3 -> 5
+@click.option("-s", "--start_time", type=float, required=True)
 @click.argument("output", type=click.File("w"))
 @unasync
-async def main(mapper, workers, interval, chunk_size, output):
+async def main(mapper, workers, interval, chunk_size, start_time, output):
     query_job = MapReduceJob(
         mapper,
         EmptyReducer(),
@@ -47,10 +49,14 @@ async def main(mapper, workers, interval, chunk_size, output):
     dataset = FileListIterator(config.IMAGE_LIST_PATH)
     await query_job.start(dataset, dataset.close)
 
+    # Align first output to increments of `interval` after start_time
+    delay_time = interval - (time.time() - start_time) % interval
+
     results = []
     try:
         while not query_job.finished:
-            await asyncio.sleep(interval)
+            await asyncio.sleep(delay_time)
+            delay_time = interval
             results.append(query_job.job_result)
     except KeyboardInterrupt:
         pass

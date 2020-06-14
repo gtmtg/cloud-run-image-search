@@ -133,6 +133,7 @@ class Mapper(abc.ABC):
         return json(
             {
                 "worker_id": self.worker_id,
+                "boot_time": self._init_start_time,
                 "profiling": self._profiling_results_by_request.pop(request_id),
                 "outputs": outputs,
             }

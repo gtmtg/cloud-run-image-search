@@ -59,6 +59,7 @@ class MapReduceJob:
         self._n_successful = 0
         self._n_failed = 0
         self._n_chunks_per_mapper: Dict[str, int] = collections.defaultdict(int)
+        self._mapper_boot_times: Dict[str, float] = collections.defaultdict(float)
         self._profiling: Dict[str, Statistics] = collections.defaultdict(Statistics)
 
         # Will be initialized later
@@ -138,11 +139,13 @@ class MapReduceJob:
 
     @property
     def job_result(self) -> Dict[str, Any]:
-        elapsed_time = (time.time() - self.start_time) if self.start_time else 0.0
+        current_time = time.time()
+        elapsed_time = (current_time - self.start_time) if self.start_time else 0.0
 
         performance = {
             "profiling": {k: v.mean() for k, v in self._profiling.items()},
             "mapper_utilization": dict(enumerate(self._n_chunks_per_mapper.values())),
+            "mapper_boot_times": dict(enumerate(self._mapper_boot_times.values())),
         }
 
         progress = {
@@ -151,6 +154,7 @@ class MapReduceJob:
             "n_processed": self._n_successful,
             "n_skipped": self._n_failed,
             "elapsed_time": elapsed_time,
+            "current_time": current_time,
         }
         if self._n_total is not None:
             progress["n_total"] = self._n_total
@@ -226,6 +230,7 @@ class MapReduceJob:
         self._n_successful += n_successful
         self._n_failed += len(chunk) - n_successful
         self._n_chunks_per_mapper[result["worker_id"]] += 1
+        self._mapper_boot_times[result["worker_id"]] = result["boot_time"]
 
         self._profiling["total_time"].push(elapsed_time)
         for k, v in result["profiling"].items():
