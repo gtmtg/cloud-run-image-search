@@ -110,7 +110,6 @@ class Mapper(abc.ABC):
             self._server = None
 
         self._init_time = time.time() - self._init_start_time
-        self._boot_time = None  # will be set later
 
     async def __call__(self, *args, **kwargs):
         if self._server is not None:
@@ -118,13 +117,9 @@ class Mapper(abc.ABC):
 
     async def _handle_request(self, request):
         init_time = self._init_time
-        if self._init_time:
-            self._init_time = 0.0
-            self._boot_time = time.time() - self._init_start_time
+        self._init_time = 0.0
 
         request_id = str(uuid.uuid4())
-        with self.profiler(request_id, "boot_time", additional=self._boot_time):
-            pass
         with self.profiler(request_id, "billed_time", additional=init_time):
             with self.profiler(request_id, "request_time"):
                 job_id = request.json["job_id"]
