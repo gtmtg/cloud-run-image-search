@@ -25,4 +25,4 @@ done
 rm -rf $folder/knn
 
 # Deploy Cloud Run handler
-./reset.sh $folder
+./reset.sh $folder 1
