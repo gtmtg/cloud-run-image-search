@@ -95,21 +95,21 @@ class MapReduceJob:
 
         iterable = iter(iterable)
 
-        if self.chunk_size in (1, 3, 5, 7, 9, 11, 13):
-            chunked = utils.chunk(iterable, self.chunk_size)
-        elif self.chunk_size == 15:
+        if self.chunk_size == 15:
+            print("Using chunk size schedule 1 -> 5")
             chunked = itertools.chain(
                 utils.chunk(iterable, 1, until=2 * self.n_mappers),
                 utils.chunk(iterable, 5),
             )
         elif self.chunk_size == 135:
+            print("Using chunk size schedule 1 -> 3 -> 5")
             chunked = itertools.chain(
                 utils.chunk(iterable, 1, until=2 * self.n_mappers),
                 utils.chunk(iterable, 3, until=2 * self.n_mappers),
                 utils.chunk(iterable, 5),
             )
         else:
-            raise NotImplementedError(f"Unsupported chunk schedule {self.chunk_size}")
+            chunked = utils.chunk(iterable, self.chunk_size)
 
         connector = aiohttp.TCPConnector(limit=0)
         async with aiohttp.ClientSession(connector=connector) as session:
