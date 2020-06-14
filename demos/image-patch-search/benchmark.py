@@ -25,7 +25,7 @@ class EmptyReducer(Reducer):
 @click.option("-m", "--mapper", default=config.QUERY_ENDPOINT)
 @click.option("-w", "--workers", default=1000)
 @click.option("-i", "--interval", default=5)
-@click.option("-c", "--chunk_size", default=135)  # 1 -> 3 -> 5
+@click.option("-c", "--chunk_size", default=5)
 @click.argument("output", type=click.File("w"))
 @unasync
 async def main(mapper, workers, interval, chunk_size, output):
