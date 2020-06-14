@@ -100,7 +100,6 @@ class Mapper(abc.ABC):
             self._server = None
 
         self._init_time = time.time() - self._init_start_time
-        self._boot_time = None  # will be set later
 
     async def __call__(self, *args, **kwargs):
         if self._server is not None:
