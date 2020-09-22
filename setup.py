@@ -9,7 +9,7 @@ setup(
     author_email="mihirg@stanford.edu",
     package_dir={"": "src"},
     packages=find_packages("src"),
-    install_requires=["aiohttp", "dataclasses-json", "numpy", "runstats"],
+    install_requires=["aiohttp[speedups]", "dataclasses-json", "numpy", "runstats"],
     python_requires=">=3.7",
     zip_safe=True,
 )

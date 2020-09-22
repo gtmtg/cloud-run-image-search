@@ -11,3 +11,7 @@ body,html {
 hr {
     color: #d0d0d0;
 }
+
+#results .result {
+    margin-top: 15px;
+}

@@ -86,18 +86,31 @@
 
     var image_data = [];
 
-    for (const image of images) {
+    function add_image(image) {
         var data = new ImageData;
         data.source_url = image_url_prefix + image;
         image_data.push(data);
     }
 
+    images.forEach(add_image);
     labeler.load_image_stack(image_data);
 
     labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
 
     function handle_clear_boxes() {
         labeler.clear_boxes();
+    }
+
+    function focus_in_labeler(e) {
+        e = e || window.event;
+        const target = e.target || e.srcElement;
+        const image = target.dataset.image;
+        images.push(image);
+        add_image(image);
+        labeler.load_image_stack(image_data);
+        labeler.set_current_frame_num(image_data.length - 1);
+        document.documentElement.scrollTop = 0;
+        e.preventDefault();
     }
 
     window.addEventListener("keydown", function(e) {
@@ -209,12 +222,16 @@
         if (results.length > 0) {
             let rank = 1;
             for (const result of results) {
-                result_html += '<div>';
+                result_html += '<div class="result">';
                 result_html += '<div>'
                 result_html += `(${rank}) ${result["input"]}, score=${Number.parseFloat(result["score"]).toFixed(6)}`;
                 result_html += '<div>';
                 result_html += `<img src="${image_url_prefix}${result["input"]}" width="250" />`;
                 result_html += `<img src="${image_url_prefix}${result["output"]["score_map_path"]}" width="250" />`;
+                result_html += '<div>';
+                result_html += `<a href="${image_url_prefix}${result["input"]}" target="_blank">Open in new tab</a>&nbsp;&nbsp;&nbsp;`;
+                result_html += `<a href="#" onclick="focus_in_labeler(event)" data-image="${result["input"]}">Start new query</a> `;
+                result_html += `</div>`;
                 result_html += `</div>`;
                 result_html += `</div>`;
                 result_html += `</div>`;
@@ -226,6 +243,9 @@
 
         $("#results").html(result_html);
     };
+
+    let recent_images_per_second = [];
+    const recent_window_size = 1;
 
     const update_progress = (progress) => {
         progress.ts = (new Date()).getTime();
@@ -241,13 +261,23 @@
         update_stat("images_per_second_avg",
                     `${images_per_second_avg.toFixed(1)} img/sec (overall)`,
                     images_per_second_avg,
-                    100);
+                    500);
 
-        let images_per_second = make_derivative(progress, prev_progress, "images_per_second", (s) => s.n_processed);
-        update_stat("images_per_second",
-                    `${images_per_second.toFixed(1)} img/sec (recent)`,
-                    images_per_second,
-                    100);
+        if ('n_processed' in prev_progress) {
+            recent_images_per_second.push(progress.n_processed - prev_progress.n_processed);
+            if (recent_images_per_second.length > recent_window_size) {
+                recent_images_per_second.shift();
+            }
+
+            let images_per_second = 0;
+            recent_images_per_second.forEach((n) => images_per_second += n);
+            images_per_second /= recent_images_per_second.length
+
+            update_stat("images_per_second",
+                        `${images_per_second.toFixed(1)} img/sec (recent)`,
+                        images_per_second,
+                        500);
+        }
 
         update_stat_no_bar("total_cost", `Overall cost: $${progress.cost.toFixed(2)}`);
 
@@ -292,23 +322,6 @@
     };
 
     // Helper functions
-
-    const make_derivative = (cur, prev, key, fn) => {
-        if (!$.isEmptyObject(prev)) {
-            // Take derivative
-            cur[key] = (fn(cur) - fn(prev)) *        /* difference */
-                       (1000 / (cur.ts - prev.ts));  /* 1 / dt (in seconds) */
-
-            // Smooth with exponential moving average
-            if (key in prev) {
-                cur[key] = (prev[key] + cur[key]) / 2;
-            }
-
-            return cur[key];
-        } else {
-            return 0;
-        }
-    };
 
     const update_stat = (name, text, value, max) => {
         $(`#stats #${name} #text`).html(text);

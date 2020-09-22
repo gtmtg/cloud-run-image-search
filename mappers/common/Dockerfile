@@ -7,11 +7,11 @@ WORKDIR $APP_HOME
 COPY requirements-build.txt ./
 COPY requirements.txt ./
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc python3.7-dev wget \
+    && apt-get install -y --no-install-recommends build-essential python3.7-dev wget \
     && pip install -r requirements-build.txt \
     && pip install -r requirements.txt \
     && grep -F -x -v -f requirements.txt requirements-build.txt | pip uninstall -y -r /dev/stdin \
-    && apt-get purge -y --auto-remove gcc python3.7-dev
+    && apt-get purge -y --auto-remove build-essential python3.7-dev
 
 # Download external resources.
 COPY resources.txt ./

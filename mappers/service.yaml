@@ -1,0 +1,31 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  annotations:
+    client.knative.dev/user-image: gcr.io/visualdb-1046/mihir-spatial-search-blog
+  labels:
+    cloud.googleapis.com/location: us-central1
+  name: mihir-spatial-search-blog
+  namespace: '50518136478'
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: '1000'
+        client.knative.dev/user-image: gcr.io/visualdb-1046/mihir-spatial-search-blog
+        run.googleapis.com/experimental-sandbox: 'true'
+      name: mihir-spatial-search-blog-00005
+    spec:
+      containerConcurrency: 1
+      containers:
+      - image: gcr.io/visualdb-1046/mihir-spatial-search-blog
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: '1'
+            memory: 2Gi
+      timeoutSeconds: 900
+  traffic:
+  - latestRevision: true
+    percent: 100
